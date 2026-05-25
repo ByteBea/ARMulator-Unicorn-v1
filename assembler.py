@@ -8,6 +8,16 @@ from settings import getSetting
 
 from stateManager import StateManager
 appState = StateManager()
+#controllo se keystone è installato
+try:
+    from keystone import Ks, KS_ARCH_ARM, KS_MODE_ARM, KsError
+    _ks_engine = Ks(KS_ARCH_ARM, KS_MODE_ARM)  # singleton, istanziato una volta sola
+    KEYSTONE_AVAILABLE = True
+    print("hello kuromi, keystone presente")
+except ImportError:
+    _ks_engine = None
+    KEYSTONE_AVAILABLE = False
+    print("hello kuromi, keystone non presente")
 
 """
     @private
@@ -132,23 +142,110 @@ def parse(code, memLayout="simulation"):
             # We ensure that we are in the initial state of the lexer (in case of error in the previous lines)
             lexer.begin("INITIAL")
             parsedLine = yaccparser.parser.parse(input=line)
+        # except LexError as e:
+        #     listErrors.append(("codeerror", i, appState.getT(4)))
+        #     continue
+        #inizio
+
         except LexError as e:
+            if _ks_engine is not None and currentSection is not None:
+                raw_line = line.strip()
+                try:
+                    enc, _ = _ks_engine.asm(raw_line)
+                    if enc:
+                        bytecode[currentSection].extend(enc)
+                        for tmpAddr in range(max(currentAddr, 0), max(currentAddr, 0) + len(enc), 4):
+                            addrToLine[tmpAddr].append(i)
+                        lineToAddr[i] = [currentAddr + li for li in range(len(enc))]
+                        currentAddr += len(enc)
+                        lastLineType = "BYTECODE"
+                        totalMemAllocated += len(enc)
+                        continue
+                except Exception:
+                    pass
             listErrors.append(("codeerror", i, appState.getT(4)))
             continue
+
+        #fine
+        # except ParserError as e:
+        #     listErrors.append(("codeerror", i, str(e)))
+        #     continue
+        # except Exception as e:
+        #     listErrors.append(
+        #         ("codeerror", i, appState.getT(5))
+        #     )
+        #     print(str(e))
+        #     continue
         except ParserError as e:
+            if _ks_engine is not None:
+                raw_line = line.strip()
+                try:
+                    enc, _ = _ks_engine.asm(raw_line)
+                    if enc and currentSection is not None:
+                        bytecode[currentSection].extend(enc)
+                        for tmpAddr in range(max(currentAddr, 0), max(currentAddr, 0) + len(enc), 4):
+                            addrToLine[tmpAddr].append(i)
+                        lineToAddr[i] = [currentAddr + li for li in range(len(enc))]
+                        currentAddr += len(enc)
+                        lastLineType = "BYTECODE"
+                        totalMemAllocated += len(enc)
+                        continue
+                except KsError:
+                    pass
             listErrors.append(("codeerror", i, str(e)))
             continue
         except Exception as e:
-            listErrors.append(
-                ("codeerror", i, appState.getT(5))
-            )
+            if _ks_engine is not None:
+                raw_line = line.strip()
+                try:
+                    enc, _ = _ks_engine.asm(raw_line)
+                    if enc and currentSection is not None:
+                        bytecode[currentSection].extend(enc)
+                        for tmpAddr in range(max(currentAddr, 0), max(currentAddr, 0) + len(enc), 4):
+                            addrToLine[tmpAddr].append(i)
+                        lineToAddr[i] = [currentAddr + li for li in range(len(enc))]
+                        currentAddr += len(enc)
+                        lastLineType = "BYTECODE"
+                        totalMemAllocated += len(enc)
+                        continue
+                except Exception:
+                    pass
+            listErrors.append(("codeerror", i, appState.getT(5)))
             print(str(e))
+            print("hello kuromi")
             continue
+
+        # else:
+        #     if parsedLine is None or len(parsedLine) == 0:
+        #         # Unknown error, but the instruction did not parse
+        #         listErrors.append(("codeerror", i, appState.getT(6)))
+        #         continue
+        #inizio
+        
+        # DOPO
         else:
             if parsedLine is None or len(parsedLine) == 0:
                 # Unknown error, but the instruction did not parse
+                # Proviamo Keystone come fallback (es. istruzioni ARMv6/v7)
+                if _ks_engine is not None and currentSection is not None:
+                    raw_line = line.strip()
+                    try:
+                        enc, _ = _ks_engine.asm(raw_line)
+                        if enc:
+                            bytecode[currentSection].extend(enc)
+                            for tmpAddr in range(max(currentAddr, 0), max(currentAddr, 0) + len(enc), 4):
+                                addrToLine[tmpAddr].append(i)
+                            lineToAddr[i] = [currentAddr + li for li in range(len(enc))]
+                            currentAddr += len(enc)
+                            lastLineType = "BYTECODE"
+                            totalMemAllocated += len(enc)
+                            continue
+                    except Exception:
+                        pass
                 listErrors.append(("codeerror", i, appState.getT(6)))
                 continue
+
+        #fine        
 
         if "SECTION" in parsedLine:
             if snippetMode:

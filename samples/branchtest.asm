@@ -8,5 +8,5 @@ main
     MOV R0, #99
 fine
     MOV R1, #1
-
+B end
 SECTION DATA

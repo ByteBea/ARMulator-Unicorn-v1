@@ -1,15 +1,22 @@
-
 import struct
 from settings import getSetting
 from components import Registers, Memory, Breakpoint, ComponentException
 from history import History
 from simulatorOps import *
 from simulatorOps.abstractOp import ExecutionException
-from min_egine_versione_in_mod_classe import UnicornEmulator
+from Unicorn_ENgine import UnicornEmulator
 from stateManager import StateManager
 from unicorn import Uc, UC_ARCH_ARM, UC_MODE_ARM
 appState = StateManager()
 
+#controllo se capstone è installato. Se non funziona non crasha, ma utilizza il vecchio sistema
+try:
+    from capstone import Cs, CS_ARCH_ARM, CS_MODE_ARM
+    CAPSTONE_AVAILABLE = True
+    print("hello cinamon, capstone presente")
+except ImportError:
+    CAPSTONE_AVAILABLE = False
+    print("hello cinamon, capstone non presente")
 class MultipleErrors(Exception):
     """
     This exception class is used to store multiple execution errors. It is useful if there
@@ -382,23 +389,66 @@ class Simulator:
                     self.decoderCache = {}
             except ExecutionException as err:
                 # Invalid instruction
-                self.currentInstr = None
-                self.errorsPending.append("execution", err.text)
+                # self.currentInstr = None
+                # self.errorsPending.append("execution", err.text)
+                
+                if CAPSTONE_AVAILABLE:
+                    try:
+                        cs = Cs(CS_ARCH_ARM, CS_MODE_ARM)
+                        for instr in cs.disasm(self.fetchedInstr, self.regs[15] - self.pcoffset):
+                            # Capstone ha riconosciuto l'istruzione, la accettiamo
+                            self.currentInstr = self.decoders["NopOp"]  # placeholder neutro
+                            self.currentInstr.setBytecode(instrInt)
+                            self.currentInstr._capstoneDisasm = f"{instr.mnemonic} {instr.op_str}"
+                            break
+                        else:
+                            self.currentInstr = None
+                            self.errorsPending.append("execution", err.text)
+                    except Exception:
+                        self.currentInstr = None
+                        self.errorsPending.append("execution", err.text)
+                else:
+                    self.currentInstr = None
+                    self.errorsPending.append("execution", err.text)
+                
 
     def explainInstruction(self):
         if not self.currentInstr:
-            # Undefined instruction
+            if CAPSTONE_AVAILABLE and self.fetchedInstr:
+                # istruzione non riconosciuta da simulatorOps, prova con Capstone
+                try:
+                    cs = Cs(CS_ARCH_ARM, CS_MODE_ARM)
+                    for instr in cs.disasm(self.fetchedInstr, self.regs[15] - self.pcoffset):
+                        disassembly = f"{instr.mnemonic} {instr.op_str}"
+                        dis = f'<div id="disassembly_instruction">Instruction: {disassembly}</div>'
+                        self.disassemblyInfo = (
+                            ["highlightRead", []],
+                            ["highlightWrite", []],
+                            ["disassembly", dis],
+                        )
+                        return
+                except Exception:
+                    pass
+            # fallback finale
             self.disassemblyInfo = (
                 ["highlightRead", []],
                 ["highlightWrite", []],
                 ["nextline", None],
-                ["disassembly", appState.getT(1)],
+                 ["disassembly", appState.getT(1)],
             )
             return
-
+        
+        if hasattr(self.currentInstr, '_capstoneDisasm'):
+            dis = f'<div id="disassembly_instruction">Instruction: {self.currentInstr._capstoneDisasm}</div>'
+            self.disassemblyInfo = (
+                ["highlightRead", []],
+                ["highlightWrite", []],
+                ["disassembly", dis],
+            )
+            return
         disassembly, description = self.currentInstr.explain(self)
         dis = '<div id="disassembly_instruction">{}: {}</div>\n<div id="disassembly_description">{}</div>\n'.format(
-            appState.getT(2) ,disassembly, description
+            appState.getT(2), disassembly, description
         )
 
         if self.currentInstr.nextAddressToExecute != -1:

@@ -1,4 +1,4 @@
-from min_egine_versione_in_mod_classe import UnicornEmulator  #importare la classe da min_engine
+from Unicorn_ENgine import UnicornEmulator  #importare la classe da min_engine
 #questo codice chiama il codice del motore e gli passa il file arm da assemblare
 #da copiare poi nel file nel progetto che manda il codice al motore
 #per ora lanciarlo in questa modatità: python3 main.py samples/exampleweb.asm

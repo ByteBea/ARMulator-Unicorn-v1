@@ -230,6 +230,8 @@ class BCInterpreter:
             self.errorsPending = err
             self.sim.stepMode = None
             self.sim.explainInstruction()
+        if self.sim.isStepDone() and self.sim.stepMode in ("run", "out", "forward"):
+            self.sim.stepMode = None
 
 
     def step(self, stepMode=None):
@@ -250,6 +252,8 @@ class BCInterpreter:
         except MultipleErrors as err:
             # Execution error
             self.errorsPending = err
+            self.sim.stepMode = None
+        if self.sim.isStepDone() and self.sim.stepMode in ("run", "out", "forward"):
             self.sim.stepMode = None
 
     def stepBack(self, count=1):

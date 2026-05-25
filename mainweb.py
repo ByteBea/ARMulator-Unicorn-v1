@@ -71,6 +71,7 @@ async def run_instance(ws):
     Parameters:
         web_socket(ws):Connected client
     """
+    await asyncio.sleep(0)
     while True:
         if ws not in connected:
             break
@@ -186,20 +187,41 @@ async def handler(websocket):
                         interpreters[websocket].user_asked_stop__ = True
                     ui_update_queue.extend(updateDisplay(interpreters[websocket]))
 
+                # else:
+                #     interpreters[websocket].num_exec__ -= interpreters[
+                #         websocket
+                #     ].getCycleCount()
+                #     interpreters[websocket].execute()
+                #     interpreters[websocket].last_step__ = time.time()
+                #     interpreters[websocket].num_exec__ += interpreters[
+                #         websocket
+                #     ].getCycleCount()
+                #     interpreters[websocket].num_exec__ = max(
+                #         interpreters[websocket].num_exec__, 1
+                #     )
+                #     interpreters[websocket].user_asked_stop__ = True
+                #     ui_update_queue.extend(updateDisplay(interpreters[websocket]))
                 else:
-                    interpreters[websocket].num_exec__ -= interpreters[
-                        websocket
-                    ].getCycleCount()
-                    interpreters[websocket].execute()
-                    interpreters[websocket].last_step__ = time.time()
-                    interpreters[websocket].num_exec__ += interpreters[
-                        websocket
-                    ].getCycleCount()
-                    interpreters[websocket].num_exec__ = max(
-                        interpreters[websocket].num_exec__, 1
-                    )
-                    interpreters[websocket].user_asked_stop__ = True
-                    ui_update_queue.extend(updateDisplay(interpreters[websocket]))
+                    BATCH_TIME_SEC = 0.05
+                    batch_start = time.time()
+                    interp = interpreters[websocket]
+                    interp.num_exec__ -= interp.getCycleCount()
+                    still_running = True
+                    while True:
+                        interp.step()
+                        interp.num_exec__ += 1
+                        if interp.shouldStop or interp.user_asked_stop__:
+                            interp.user_asked_stop__ = True
+                            still_running = False
+                            break
+                        if time.time() - batch_start >= BATCH_TIME_SEC:
+                            break
+                    interp.last_step__ = time.time()
+                    interp.num_exec__ = max(interp.num_exec__, 1)
+                    ui_update_queue.extend(updateDisplay(interp))
+                    if still_running:
+                        interp.last_step__ = time.time() + 0.01
+                        await asyncio.sleep(0)
 
                 to_run_task = asyncio.ensure_future(run_instance(websocket))
 
@@ -422,7 +444,8 @@ def process(ws, msg_in):
                     interpreters[ws].stepBack()
                     force_update_all = True
                 elif data[0] == "stepinto":
-                    interpreters[ws].execute("into")
+                    #interpreters[ws].execute("into")
+                    interpreters[ws].step("into") 
                 elif data[0] == "stepforward":
                     interpreters[ws].setStepMode("forward")
                     interpreters[ws].user_asked_stop__ = False
@@ -461,7 +484,9 @@ def process(ws, msg_in):
                             retval.append(["animate_speed", str(anim_speed)])
                         interpreters[ws].animate_speed__ = anim_speed
                 elif data[0] == "stop":
-                    del interpreters[ws]
+                    #del interpreters[ws]
+                    interpreters[ws].user_asked_stop__ = True
+                    interpreters[ws].sim.stepMode = None
                 elif data[0] == "reset":
                     interpreters[ws].reset()
                 elif data[0] == "breakpointsinstr":

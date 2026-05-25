@@ -67,6 +67,16 @@ class UnicornEmulator:
         print("INTVEC_ADDR", self.INTVEC_ADDR)
         print("CODE_ADDR", self.CODE_ADDR)
         print("DATA_ADDR", self.DATA_ADDR)
+        # Abilita VFP/NEON
+        try:
+            from unicorn.arm_const import UC_ARM_REG_FPEXC
+            self.mu.reg_write(UC_ARM_REG_FPEXC, 0x40000000)
+            cpsr = self.mu.reg_read(UC_ARM_REG_CPSR)
+            cpsr |= (0xF << 20)
+            self.mu.reg_write(UC_ARM_REG_CPSR, cpsr)
+            print("VFP enabled")
+        except Exception as e:
+            print(f"VFP not available: {e}")
 
     def sincronizzazione_iniziale(self):
         #sicronizzazione inizilae dei registri, in modo da poterli stampare alla fine, e anche per poterli usare durante la simulazione,

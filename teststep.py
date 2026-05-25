@@ -1,4 +1,4 @@
-from min_egine_versione_in_mod_classe import UnicornEmulator  #importare la classe da min_engine
+from Unicorn_ENgine import UnicornEmulator  #importare la classe da min_engine
 from unicorn import *
 from unicorn.arm_const import *
 emu=UnicornEmulator()

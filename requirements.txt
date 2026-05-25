@@ -52,3 +52,5 @@ websockets==15.0.1
 zope.event==5.0
 zope.interface==7.2
 unicorn==2.1.4
+keystone-engine
+capstone
