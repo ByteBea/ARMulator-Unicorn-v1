@@ -9,7 +9,7 @@ ARMmulator is a lightweight ARM emulator tool built on top of [Unicorn Engine](h
 Unicorn took QEMU's CPU emulation core and turned it into an embeddable library which can be controlled by API, by removing the bootloader, device emulation, OS, and anything else. It achieves high performance through the Just-In-Time (JIT) compiler technique. This means that ARM Bytecode is not interpreted instruction by instruction (as `simulator.py` from the original project did), but it is compiled at runtime into native code of the host machine.
 The old version of ARMulator (based on epater) used a pure python interpreter: every instruction was decoded, analyzed and simulated in Python. This means that performance was slow and limited to ARMv4. With Unicorn the flow becomes :
 1. `assembler.py` generates the ARM Bytecode just like before.
-2. The new `min_egine_versione_in_mod_classe.py` loads that bytecode into Unicorn, maps the memory, and configures the registers.
+2. The new `Unicorn_ENgine.py` loads that bytecode into Unicorn, maps the memory, and configures the registers.
 3. Unicorn runs the code using native JIT compilation, exposing hooks that intercept each instruction, memory access, and interrupt — used to update the GUI state and manage debugging.
 
 ### 1.2 Supported Architectures
@@ -18,27 +18,30 @@ In fact the previous project was stuck on ARMv4, but with Unicorn now it could s
 
 ### 1.3 Main Changes
 - Updated dependencies in the `requirements.txt`.
-- Created a new engine `min_egine_versione_in_mod_classe.py` with **Unicorn**.
+- Created a new engine `Unicorn_ENgine.py` with **Unicorn**.
 - Created a new `main.py` as the CLI entry point.
-- `simulator.py` acts as an orchestrator, `simulatorOps` handles the `explain()` part, and `min_egine_versione_in_mod_classe.py` however is responsible for fetching (`fetch()`) and  (`decode()`).
+- `simulator.py` acts as an orchestrator, `simulatorOps` handles the `explain()` part on ARMv4, **Capstone** converts bytecode back into assembly text, **Keystone** converts assembly text into bytecode, and `Unicorn_ENgine.py` however is responsible for fetching (`fetch()`) and  (`decode()`).
 - PC (Program Counter) in the old version was manually updated, now Unicorn handles it.
-- Now compatible with macOS
+- Now partially compatible with macOS
 
 ### 1.4 ARMulator (Original) VS ARMulator Unicorn
 
 | Aspect | ARMulator (original) | ARMulator-Unicorn |
 |---|---|---|
 | **Instruction execution** | Pure Python interpreter, one instruction at a time | Unicorn JIT (native C), much faster |
-| **Who executes** | `simulator.py` + `simulatorOps/` | `min_egine_versione_in_mod_classe.py` (UnicornEmulator) |
+| **Who executes** | `simulator.py` + `simulatorOps/` | `Unicorn_ENgine.py` (UnicornEmulator) |
 | **Instruction decoding** | `bytecodeToInstr()` manually analyzes bits in Python | Unicorn internally, automatic |
 | **PC update** | Manual in Python after each instruction | Unicorn updates it automatically |
 | **Role of `simulator.py`** | Engine + orchestrator (did everything) | Orchestrator only (delegates execution) |
-| **`simulatorOps`** | Used for decoding + execution + disassembly | Used only for GUI disassembly |
+| **`simulatorOps`** | Used for decoding + execution + disassembly on ARMv4 | Used only for GUI disassembly on ARMv4 instructions |
+| **Disassembly (unknown instructions)** | Not supported, error returned | Capstone fallback in `explainInstruction()` |
+| **Assembly (unknown instructions)** | Not supported, syntax error returned | Keystone fallback in `assembler.py` (future) |
 | **Breakpoints** | Managed entirely in Python | Managed via Unicorn hooks (`hook_code`, `hook_mem`) |
 | **IRQ/FIQ interrupts** | Managed in Python | Still managed in Python (Unicorn does not support them natively) |
 | **CPU state sync** | Not needed (everything in Python) | Required at every step (sync in → execute → sync out) |
 | **History/reverse debug** | Recorded directly in Python | Recorded after sync out, comparing byte by byte |
-| **ARM compatibility** | ARMv4 only | Potentially ARMv7/ARMv8 (depends on Unicorn) |
+| **ARM compatibility** | ARMv4 only | ARMv4 + partial ARMv7 via Unicorn + Capstone + Keystone |
+| **VFP/Floating point** | Not supported | Enabled via FPEXC register initialization in Unicorn |
 | **Portability** | Issues on macOS | Windows, Linux, macOS supported by Unicorn |
 | **Speed** | Slow (everything interpreted in Python) | Much faster (native JIT) |
 
@@ -50,6 +53,8 @@ In fact the previous project was stuck on ARMv4, but with Unicorn now it could s
 ARMulator-Unicorn/
 │
 ├── assembler.py                                # ARM Source → Bytecode compiler
+│                                               # Falls back to Keystone Engine for
+│                                               # unsupported instructions (ARMv7, VFP)
 │
 ├── bytecodeinterpreter.py                      # Middleware (UI logic, breakpoints, state)
 │
@@ -64,10 +69,11 @@ ARMulator-Unicorn/
 │
 ├── mainweb.py                                  # Web Entry Point (Bottle server + WebSockets)
 ├── manuale.pdf
-├── min_egine_versione_in_mod_classe.py         # ← NEW CORE FILE
-│                                               # Replaces the legacy simulator with the Unicorn Engine.
-│                                               # Inherits UI methods from BCInterpreter.
-│                                               # Overrides only step(), execute(), and reset().
+├── Unicorn_ENgine.py                           # ← NEW CORE FILE
+│                                               # Replaces the legacy simulator with Unicorn.
+│                                               # Manages memory mapping, hooks, step(),
+│                                               # reset() and VFP/floating point support.
+│                                               # Enables CP10/CP11 via FPEXC register.
 │                                              
 ├── native_app.py                               # Desktop Wrapper (pywebview + Qt)
 ├── parser.out
@@ -81,20 +87,22 @@ ARMulator-Unicorn/
 │
 ├── settings.py                                 # Global configurations and constants.
 │
-├── simulatorOps                                # ARM instruction decoding (required for 
-│                                               # assembler, tokenizer, and yaccparser).
+├── simulatorOps                                # ARM instruction decoding (ARMv4 only).
 │                                               # Base class + ExecutionException definition.
 │                                               # Instruction metadata for the parser.
 │                                               # BranchOp, DataOp, MemOp, etc.
+│                                               # Falls back to Capstone disassembler for
+│                                               # unsupported instructions (ARMv7, VFP).
 │
-├── simulator.py                                # Legacy execution engine (kept for internal
-│                                               # use by BCInterpreter, though execution 
-│                                               # is now handled by Unicorn).
+├── simulator.py                                # Orchestrator (kept for internal use by
+│                                               # BCInterpreter). Execution delegated to
+│                                               # Unicorn_ENgine.py. Integrates Capstone
+│                                               # fallback for unknown instruction disassembly.
 ├── stateManager.py
 ├── tests
-├── teststep.py                                 # # Instruction-level validation script. 
-│                                               # Used to verify the synchronization between 
-│                                               # Unicorn's internal state and the custom 
+├── teststep.py                                 # Instruction-level validation script.
+│                                               # Used to verify the synchronization between
+│                                               # Unicorn's internal state and the custom
 │                                               # Register/History components.
 │
 ├── tokenizer.py                                # ARM Lexical analyzer
@@ -102,7 +110,6 @@ ARMulator-Unicorn/
 ├── utils                                       # Miscellaneous utility functions.
 ├── wsgi.py
 └── yaccparser.py                               # ARM Grammar Parser (PLY-based)
-```
 
 ### 2.2 Memory Map
 
@@ -110,7 +117,7 @@ ARMulator-Unicorn/
 | ------- | ------------- | ------- |
 | **INTVEC** | `INTVEC_ADDR` | Interupt Vector Table storage |
 | **CODE** | `CODE_ADDR` | Executable machine instructions |
-| DATA | `DATA_ADDR` | Static data and variable storage |
+| **DATA** | `DATA_ADDR` | Static data and variable storage |
 
 
 ## 3. Installation & Requirements   
@@ -120,7 +127,7 @@ ARMulator-Unicorn/
 - Python from `3.7` to `3.13` (for Developers)
 
 #### Developer Installation
-```
+```plaintext
 git clone https://github.com/USERNAME/REPO_NAME
 pip install -r requirements.txt
 ```
@@ -209,32 +216,54 @@ PIPPO step: PC=0x80 → R0=0
 ## 5. How It Works
 ```mermaid
 graph TD
-%% Source Input
-A[ASM Source Code .asm] --> B(Assembler.py)
-%% Parsing Phase
-subgraph "Parsing & Compilation"
-B --> C{Tokenizer}
-C --> D[YaccParser / PLY]
-D --> E[Bytecode + Metadata]
-end
-%% Initialization
-E --> F[MainWeb.py / Main.py]
-F --> G[Unicorn Emulator Initialization]
-%% Memory Mapping
-subgraph "Memory Mapping"
-G --> H[Map INTVEC_ADDR]
-G --> I[Map CODE_ADDR]
-G --> J[Map DATA_ADDR]
-end
-%% Execution Loop
-H & I & J --> K{Execution Mode}
-K -- Step by Step --> L[Update UI / History]
-K -- Continuous Run --> M[Unicorn Engine Execution]
-%% Results
-L & M --> N[Final Register State R0, R1, R2]
-N --> O[UI / Output Visualization]
-```
+    A[ASM Source Code] --> B[assembler.py]
+    B --> C[tokenizer.py]
+    C --> D[yaccparser.py]
+    D --> E[Bytecode + Metadata]
+    E --> F[mainweb.py / main.py]
 
+    subgraph "Web Layer"
+        F --> G[Bottle HTTP Server]
+        F --> H[WebSocket Server]
+        H --> I[bytecodeinterpreter.py]
+    end
+
+    subgraph "Simulator Core"
+        I --> J[simulator.py]
+        J --> K[Unicorn_ENgine.py]
+        J --> L[components.py]
+        J --> M[history.py]
+    end
+
+    subgraph "Unicorn Engine"
+        K --> N[mappatura_mem]
+        N --> O[Unicorn JIT]
+        N --> P[VFP enabled via FPEXC]
+        O --> Q[hook_code]
+        O --> R[hook_mem]
+    end
+
+    subgraph "Disassembly"
+        J --> S{simulatorOps}
+        S -- ARMv4 known --> T[explain ARMv4]
+        S -- unknown --> U[Capstone fallback]
+    end
+
+    subgraph "State Sync"
+        K --> V[sync in\nPython to Unicorn]
+        V --> O
+        O --> W[sync out\nUnicorn to Python]
+        W --> L
+        W --> M
+    end
+
+    subgraph "UI Output"
+        I --> X[getRegisters]
+        I --> Y[getMemoryFormatted]
+        I --> Z[getFlagsFormatted]
+        X & Y & Z --> AA[Browser GUI]
+    end
+```
 
 ## 6. Future Developments
 1. Completely replace `simulator.py` and `simulatorOps` with Unicorn (likely through **Capstone**).
