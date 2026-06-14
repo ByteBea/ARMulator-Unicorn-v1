@@ -1,9 +1,10 @@
 # ARMulator Unicorn
 #### University of Rome Tor Vergata <br> BSc in Computer Science <br> A.Y. 2025/2026 - Computer Architecture <br> Prof. A. Simonetta, Eng. E. Iannaccone <br> Serena Stefani, Beatrice Principali, Angelo De Felice
+#### [ARMulator Unicorn v2](https://github.com/amgelo00/ARMulator-unicorn-V2) is another version.
 
 ## 1. Introduction 
 
-ARMmulator is a lightweight ARM emulator tool built on top of [Unicorn Engine](https://www.unicorn-engine.org/).It bridges the gap between assembly source code and hardware-level execution by integrating a custom assembler, memory management, and state history tracking.
+ARMmulator is a lightweight ARM emulator tool built on top of [Unicorn Engine](https://www.unicorn-engine.org/) powered by the [Capstone Disassembly Engine](http://www.capstone-engine.org/) and the [Keystone Assembly Engine](https://github.com/keystone-engine/keystone). It bridges the gap between assembly source code and hardware-level execution by integrating a custom assembler, memory management, and state history tracking.
 
 ### 1.1 About the project
 Unicorn took QEMU's CPU emulation core and turned it into an embeddable library which can be controlled by API, by removing the bootloader, device emulation, OS, and anything else. It achieves high performance through the Just-In-Time (JIT) compiler technique. This means that ARM Bytecode is not interpreted instruction by instruction (as `simulator.py` from the original project did), but it is compiled at runtime into native code of the host machine.
@@ -11,6 +12,8 @@ The old version of ARMulator (based on epater) used a pure python interpreter: e
 1. `assembler.py` generates the ARM Bytecode just like before.
 2. The new `Unicorn_ENgine.py` loads that bytecode into Unicorn, maps the memory, and configures the registers.
 3. Unicorn runs the code using native JIT compilation, exposing hooks that intercept each instruction, memory access, and interrupt — used to update the GUI state and manage debugging.
+4. **Keystone** begun the `disassembler` for instructions newer than ARMv4.
+5. **Capstone** begun the `assembler` for instructions newer than ARMv4.
 
 ### 1.2 Supported Architectures
 Unicorn generally supports ARM, ARM64 (ARMv8), m68k, MIPS, PowerPC, RISC-V, S390x (SystemZ), SPARC, TriCore and x86 (including x86_64). 
@@ -22,7 +25,7 @@ In fact the previous project was stuck on ARMv4, but with Unicorn now it could s
 - Created a new `main.py` as the CLI entry point.
 - `simulator.py` acts as an orchestrator, `simulatorOps` handles the `explain()` part on ARMv4, **Capstone** converts bytecode back into assembly text, **Keystone** converts assembly text into bytecode, and `Unicorn_ENgine.py` however is responsible for fetching (`fetch()`) and  (`decode()`).
 - PC (Program Counter) in the old version was manually updated, now Unicorn handles it.
-- Now partially compatible with macOS
+- Now compatible with macOS
 
 ### 1.4 ARMulator (Original) VS ARMulator Unicorn
 
@@ -110,6 +113,7 @@ ARMulator-Unicorn/
 ├── utils                                       # Miscellaneous utility functions.
 ├── wsgi.py
 └── yaccparser.py                               # ARM Grammar Parser (PLY-based)
+```
 
 ### 2.2 Memory Map
 
@@ -126,6 +130,28 @@ ARMulator-Unicorn/
 - Windows 11 or any Linux distribution
 - Python from `3.7` to `3.13` (for Developers)
 
+#### Installation
+##### **Linux**
+
+```bash
+sudo apt update && sudo apt install python3-full python3-venv git -y 
+chmod +x run.sh
+./run.sh
+```
+
+##### **macOS**
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" # if you don't have homebrew
+brew install python
+chmod +x run.sh
+./run.sh
+```
+
+##### **Windows**
+1. Install Python 3.12+ (from the Microsoft Store or python.org).
+**Important**: During installation, make sure to check the box "Add python.exe to PATH".
+2. Double-click `run.bat` to run the application.
+
 #### Developer Installation
 ```plaintext
 git clone https://github.com/USERNAME/REPO_NAME
@@ -133,7 +159,7 @@ pip install -r requirements.txt
 ```
 
 
-## 4. Usage
+## 4. Usage (for developer)
 1. Download the .zip file from project repository in GitHub.
 
 2. Open it.
@@ -142,14 +168,14 @@ pip install -r requirements.txt
 - **Linux / macOS**
 
 ```Plaintext
-python3 -m venv env_name
-source nome_env/bin/activate
+python3.12 -m venv env_name
+source env_name/bin/activate
 ```
 - **Windows**
 
 ```Plaintext
-python -m venv env_name
-nome_env\Scripts\activate
+python3.12 -m venv env_name
+env_name\Scripts\activate
 ```
 
 4. Install all the *requirements*:
@@ -168,49 +194,94 @@ python3 mainweb.py
 python mainweb.py
 ```
 
-### 4.1 Expected Output
-After that you assembled your ARM code, or after you imported a code in ARMulator, you will see these Output:
+### 4.1. Troubleshooting
+This section describes the most common issues encountered during the setup and execution of the project, along with their causes and step-by-step solutions.
 
-```Plaintext
-INTVEC_ADDR 0
-CODE_ADDR 128
-DATA_ADDR 4096
-signalChange: Registers → [('User', 'CPSR')]
 
---- Reset completato ---
+#### ERROR 1: Ports Already in Use (`OSError: [Errno 98]`)
+The server fails to start and throws one of the following errors in the terminal:
+```bash
+OSError: [Errno 98] Address already in use: ('0.0.0.0', 8000)
+OSError: [Errno 98] error while attempting to bind on address ('0.0.0.0', 31415)
 ```
 
-#### with `step`:
-```Plaintext
-INTVEC_ADDR 0
-CODE_ADDR 128
-DATA_ADDR 4096
-signalChange: Registers → [('User', 'CPSR')]
+- **Cause**: The ports required by the server (8000 and 31415) are already occupied by other active processes or by a previous instance of the program running in the background.
 
---- Reset completato ---
-signalChange: Registers → [('User', 0), ('FIQ', 0), ('IRQ', 0), ('SVC', 0)]
-signalChange: Registers → [('User', 1), ('FIQ', 1), ('IRQ', 1), ('SVC', 1)]
-signalChange: Registers → [('User', 2), ('FIQ', 2), ('IRQ', 2), ('SVC', 2)]
-signalChange: Registers → [('User', 3), ('FIQ', 3), ('IRQ', 3), ('SVC', 3)]
-signalChange: Registers → [('User', 4), ('FIQ', 4), ('IRQ', 4), ('SVC', 4)]
-signalChange: Registers → [('User', 5), ('FIQ', 5), ('IRQ', 5), ('SVC', 5)]
-signalChange: Registers → [('User', 6), ('FIQ', 6), ('IRQ', 6), ('SVC', 6)]
-signalChange: Registers → [('User', 7), ('FIQ', 7), ('IRQ', 7), ('SVC', 7)]
-signalChange: Registers → [('User', 8), ('IRQ', 8), ('SVC', 8)]
-signalChange: Registers → [('User', 9), ('IRQ', 9), ('SVC', 9)]
-signalChange: Registers → [('User', 10), ('IRQ', 10), ('SVC', 10)]
-signalChange: Registers → [('User', 11), ('IRQ', 11), ('SVC', 11)]
-signalChange: Registers → [('User', 12), ('IRQ', 12), ('SVC', 12)]
-signalChange: Registers → [('User', 13)]
-signalChange: Registers → [('User', 14)]
-signalChange: Registers → [('User', 15), ('FIQ', 15), ('IRQ', 15), ('SVC', 15)]
-signalChange: Registers → [('User', 'CPSR')]
-PIPPO step: PC=0x80 → R0=0
+- **Resolution**:
+    1. Identify the Process ID (PID) occupying the target port:
+    ```bash
+    sudo lsof -i:8000
+    sudo lsof -i:31415
+    ```
+
+    2. Manually terminate the process using its PID:
+
+    ```bash
+    kill -9 <PID>
+    ```
+    `Example: kill -9 16698`
+
+    3. Alternatively, force-kill all instances related to the main script:
+
+    ```bash
+    pkill -f mainweb.py
+    ```
+
+#### ERROR 2: Virtual Environment (venv) Corruption or Misconfiguration
+During package installation, the process fails with an error similar to:
+
+```bash
+ERROR: Could not install packages due to an OSError:
+[Errno 20] Not a directory: '/path/name/folder/ARMulator-Unicorn/venv/lib64/python3.12'
 ```
-#### if there are mistakes:
-```Plaintext
-(G) Invalid character (line 1, column 5) : (
-```
+
+- **Cause**: The virtual environment (venv) has become corrupted, contains an internal error, or was incorrectly generated.
+
+- **Resolution**: You need to completely recreate the virtual environment:
+
+    1. Deactivate the current virtual environment:
+    ```bash
+    deactivate
+    ```
+
+    2. Remove the corrupted venv folder:
+    ```bash
+    rm -rf venv
+    ```
+    
+    3. Recreate the virtual environment (make sure to explicitly use your specific Python version):
+    ```bash
+    python3.xx -m venv venv
+    ```
+
+    4. Activate the newly created virtual environment:
+    ```bash
+    source venv/bin/activate
+    ```
+
+    5. Reinstall all the required project dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+#### ERROR 3: "Current Instruction" Window is Missing / Not Visible
+The dedicated UI panel that explains the current instruction is cut off or completely invisible.
+
+- **Cause**: The display being used has a lower resolution (e.g., 1366x768) than the standard Full HD (1920x1080) layout for which the interface was optimized.
+
+- **Temporary Workaround**: You do not need to change your monitor's hardware resolution. Simply lower your operating system's display scaling setting (for example, from 100% down to 75%). This will free up enough screen real estate to fully render and display the hidden window.
+
+### 4.2 Known Bugs
+#### Run + Step Button Issue
+- **Bug Description**: Clicking the Run button to execute the project prevents the Step button from properly stepping through the code sequence afterwards.
+
+- **Workaround**: To view individual code steps after having pressed Run, you must follow this exact sequence:
+
+    1. Click the Stop button.
+
+    2. Click the Assemble button again.
+
+    3. Click the Step button to resume step-by-step execution.
 
 
 ## 5. How It Works
@@ -266,16 +337,14 @@ graph TD
 ```
 
 ## 6. Future Developments
-1. Completely replace `simulator.py` and `simulatorOps` with Unicorn (likely through **Capstone**).
-2. Extend the existing memory hook to update history on writes, replacing the byte-by-byte sync loop in `step()`, to make it faster with bigger programs.
-3. Add Thumb mode support.
-4. Add coprocessor instruction support (CDP, MRC, MCR) leveraging Unicorn's built-in ARM coprocessor emulation.
-5. Further optimize GUI updates and prevent passive behavior (currently uses jQuery code to react to WebSocket messages).
-6. Translate the manuale or produce a new one.
-7. Fix shallow copy bug in Memory.initdata to ensure correct state restoration on reset.
-8. Translate `manuale.pdf` or produce a new one.
-9. Create a standalone executable (.exe / binary) using PyInstaller to simplify distribution and avoid manual dependency installation.
-10. Extend assembler to support ARMv7 (or ARMv8) instruction set and enable UC_MODE_V7 (or UC_MODE_V8) in Unicorn initialization.
+1. Add Thumb mode support.
+2. Add coprocessor instruction support (CDP, MRC, MCR) leveraging Unicorn's built-in ARM coprocessor emulation.
+3. Further optimize GUI updates and prevent passive behavior (currently uses jQuery code to react to WebSocket messages).
+4. Translate the manuale or produce a new one.
+5. Fix shallow copy bug in Memory.initdata to ensure correct state restoration on reset.
+6. Create a standalone executable (.exe / binary) using PyInstaller to simplify distribution and avoid manual dependency installation.
+7. Refactor the Code Export feature (`mainweb.py` / GUI).
+8. Fix the `explain()` part of the GUI.
 
 ## 7. License and Acknowledgements
 This project was developed as a final assignment for the [Computer Science](http://www.informatica.uniroma2.it) degree program at the University of Rome Tor Vergata.

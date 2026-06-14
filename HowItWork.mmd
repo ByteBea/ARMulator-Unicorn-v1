@@ -1,24 +1,24 @@
-graph TD
+flowchart TD
     A[ASM Source Code] --> B[assembler.py]
     B --> C[tokenizer.py]
     C --> D[yaccparser.py]
     D --> E[Bytecode + Metadata]
     E --> F[mainweb.py / main.py]
 
-    subgraph "Web Layer"
+    subgraph web["Web Layer"]
         F --> G[Bottle HTTP Server]
         F --> H[WebSocket Server]
         H --> I[bytecodeinterpreter.py]
     end
 
-    subgraph "Simulator Core"
+    subgraph sim["Simulator Core"]
         I --> J[simulator.py]
-        J --> K[Unicorn_ENgine.py]
+        J --> K[Unicorn_Engine.py]
         J --> L[components.py]
         J --> M[history.py]
     end
 
-    subgraph "Unicorn Engine"
+    subgraph uc["Unicorn Engine"]
         K --> N[mappatura_mem]
         N --> O[Unicorn JIT]
         N --> P[VFP enabled via FPEXC]
@@ -26,23 +26,43 @@ graph TD
         O --> R[hook_mem]
     end
 
-    subgraph "Disassembly"
+    subgraph disasm["Disassembly"]
         J --> S{simulatorOps}
         S -- ARMv4 known --> T[explain ARMv4]
         S -- unknown --> U[Capstone fallback]
     end
 
-    subgraph "State Sync"
-        K --> V[sync in\nPython to Unicorn]
+    subgraph state["State Sync"]
+        K --> V["sync in\nPython to Unicorn"]
         V --> O
-        O --> W[sync out\nUnicorn to Python]
+        O --> W["sync out\nUnicorn to Python"]
         W --> L
         W --> M
     end
 
-    subgraph "UI Output"
+    subgraph ui["UI Output"]
         I --> X[getRegisters]
         I --> Y[getMemoryFormatted]
         I --> Z[getFlagsFormatted]
         X & Y & Z --> AA[Browser GUI]
-    end
+    end 
+
+    %% --- DEFINIZIONE DEGLI STILI (classDef) ---
+    classDef cWeb fill:#e1f5ff,stroke:#01579b,stroke-width:1px;
+    classDef cSim fill:#e8f5e9,stroke:#1b5e20,stroke-width:1px;
+    classDef cUc fill:#fce4ec,stroke:#880e4f,stroke-width:1px;
+    classDef cDisasm fill:#fff3e0,stroke:#e65100,stroke-width:1px;
+    classDef cState fill:#f3e5f5,stroke:#4a148c,stroke-width:1px;
+    classDef cUi fill:#e0f2f1,stroke:#004d40,stroke-width:1px;
+    classDef cSource fill:#fff9c4,stroke:#f57f17,stroke-width:2px;
+
+    %% --- APPLICAZIONE DEGLI STILI AI SUBGRAPH E NODI ---
+    class web cWeb;
+    class sim cSim;
+    class uc cUc;
+    class disasm cDisasm;
+    class state cState;
+    class ui cUi;
+    
+    %% Stile per i nodi isolati iniziali
+    class A,B,C,D,E,F cSource;

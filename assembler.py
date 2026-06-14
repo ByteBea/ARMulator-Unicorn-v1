@@ -222,7 +222,7 @@ def parse(code, memLayout="simulation"):
         #         continue
         #inizio
         
-        # DOPO
+        
         else:
             if parsedLine is None or len(parsedLine) == 0:
                 # Unknown error, but the instruction did not parse
